@@ -8,9 +8,9 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
-import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -20,19 +20,18 @@ import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.SeekBar;
 
-import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener, SeekBar.OnSeekBarChangeListener {
 
     public static final String MEDIA_PLAYER_APP_MESSENGER_KEY = "app_messenger";
     private static final int REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS = 124;
@@ -43,6 +42,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private Button mPlayButton;
     private Button mStopButton;
+    private SeekBar mSeekBar;
+    private boolean isSeek = false;
 
 
     private AppHandler mHandler;
@@ -66,13 +67,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mStopButton = (Button) findViewById(R.id.stop_button);
         mStopButton.setOnClickListener(this);
 
+        mSeekBar = (SeekBar) findViewById(R.id.seek_bar);
+        mSeekBar.setOnSeekBarChangeListener(this);
+
         mHandler = new AppHandler(this);
         mAppMessenger = new Messenger(mHandler);
 
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (hasPermissions(REQUIRED_PERMISSIONS)) {
-                Log.v("test","onCreate:hasPermissions");
+                Log.v("test", "onCreate:hasPermissions");
                 initService();
             } else {
                 //Ask for permission: Type 1
@@ -191,6 +195,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private void stopPerformed() {
         isPlaying = false;
         mPlayButton.setText("Play");
+        mSeekBar.setProgress(0);
     }
 
     private void checkPermissions() {
@@ -310,6 +315,43 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onActivityResult(requestCode, resultCode, data);
     }
 
+    private void seekAudio(int progress) {
+        if (messengerToService != null) {
+            try {
+                Message message = Message.obtain();
+                message.what = AudioPlayerService.MEDIA_PLAYER_CONTROL_PROGRESS;
+                message.arg1 = progress;
+                messengerToService.send(message);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    private void progressPerformed(int duration, int currentPosition) {
+        int progress = (int) ((float) currentPosition / (float) duration * 100);
+        mSeekBar.setProgress(progress);
+    }
+
+
+    @Override
+    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+        if (isSeek) {
+            seekAudio(progress);
+        }
+    }
+
+    @Override
+    public void onStartTrackingTouch(SeekBar seekBar) {
+        isSeek = true;
+    }
+
+    @Override
+    public void onStopTrackingTouch(SeekBar seekBar) {
+        isSeek = false;
+    }
+
     /***********************************************************/
     /***************** private classes *************************/
     /**
@@ -367,10 +409,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 case AudioPlayerService.MEDIA_PLAYER_CONTROL_STOP:
                     target.stopPerformed();
                     break;
-
+                case AudioPlayerService.MEDIA_PLAYER_CONTROL_PROGRESS:
+                    Log.v("log_iit", "progress in app with duration = " + message.arg1 + " and current position = " + message.arg2);
+                    target.progressPerformed(message.arg1, message.arg2);
+                    break;
             }
         }
     }
-
-
 }

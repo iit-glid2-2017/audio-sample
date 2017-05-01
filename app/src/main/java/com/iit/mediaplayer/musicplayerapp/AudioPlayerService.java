@@ -22,6 +22,8 @@ public class AudioPlayerService extends Service {
     public static final int MEDIA_PLAYER_CONTROL_PAUSE = 22;
     public static final int MEDIA_PLAYER_CONTROL_STOP = 23;
 
+    public static final int MEDIA_PLAYER_CONTROL_PROGRESS = 24;
+
     public static final int MEDIA_PLAYER_SERVICE_CLIENT_UNBOUND = 30;
 
 
@@ -86,7 +88,7 @@ public class AudioPlayerService extends Service {
     }
 
 
-    private void loadMusic(){
+    private void loadMusic() {
 
         try {
             mMediaPlayer.setDataSource("/sdcard/Download/music.mp3");
@@ -111,6 +113,29 @@ public class AudioPlayerService extends Service {
         } catch (RemoteException e) {
             e.printStackTrace();
         }
+
+        followProgress();
+
+    }
+
+    private void followProgress() {
+        Log.v("log_iit", "followProgress call");
+        try {
+            Message messagePlay = Message.obtain();
+            messagePlay.what = MEDIA_PLAYER_CONTROL_PROGRESS;
+            messagePlay.arg1 = mMediaPlayer.getDuration();
+            messagePlay.arg2 = mMediaPlayer.getCurrentPosition();
+            messengerToApp.send(messagePlay);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                followProgress();
+            }
+        }, 1000);
 
     }
 
@@ -160,6 +185,12 @@ public class AudioPlayerService extends Service {
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
+                    break;
+                case AudioPlayerService.MEDIA_PLAYER_CONTROL_PROGRESS:
+                    int progress = message.arg1;
+                    int audioLength = target.mMediaPlayer.getDuration();
+                    int audioPosition = audioLength * progress / 100;
+                    target.mMediaPlayer.seekTo(audioPosition);
                     break;
                 case AudioPlayerService.MEDIA_PLAYER_SERVICE_CLIENT_UNBOUND:
 
