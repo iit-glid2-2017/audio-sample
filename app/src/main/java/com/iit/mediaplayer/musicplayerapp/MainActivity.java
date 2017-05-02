@@ -8,6 +8,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,9 +17,13 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.content.CursorLoader;
+import android.support.v4.content.Loader;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -31,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener, SeekBar.OnSeekBarChangeListener {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener, SeekBar.OnSeekBarChangeListener, LoaderManager.LoaderCallbacks<Cursor> {
 
     public static final String MEDIA_PLAYER_APP_MESSENGER_KEY = "app_messenger";
     private static final int REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS = 124;
@@ -39,6 +44,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final String[] REQUIRED_PERMISSIONS = new String[]{
             Manifest.permission.READ_EXTERNAL_STORAGE
     };
+
+    private static final int AUDIO_LOADER_ID = 1000;
 
     private Button mPlayButton;
     private Button mStopButton;
@@ -94,6 +101,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 AudioPlayerService.class);
         serviceIntent.putExtra(MEDIA_PLAYER_APP_MESSENGER_KEY, mAppMessenger);
         startService(serviceIntent);
+
+        LoaderManager loaderManager = getSupportLoaderManager();
+        loaderManager.initLoader(AUDIO_LOADER_ID, null, this);
     }
 
     @Override
@@ -350,6 +360,62 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     public void onStopTrackingTouch(SeekBar seekBar) {
         isSeek = false;
+    }
+
+    @Override
+    public Loader onCreateLoader(int id, Bundle args) {
+
+        Loader loader;
+
+        String[] projection = {
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.DATA,
+                MediaStore.Audio.Media.DISPLAY_NAME,
+                MediaStore.Audio.Media.DURATION
+        };
+
+        switch (id) {
+            case AUDIO_LOADER_ID:
+            default:
+                loader = new CursorLoader(getApplicationContext(), MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        projection, null, null, null);
+
+//                loader = new CursorLoader(getApplicationContext(), MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+//                        projection, MediaStore.Audio.Media.IS_MUSIC + " != 0", null, null);
+                break;
+
+        }
+
+        return loader;
+    }
+
+    @Override
+    public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+        Log.v("slim", "onLoadFinished called");
+        if (loader.getId() == AUDIO_LOADER_ID) {
+            Log.v("slim", "onLoadFinished: Media");
+
+            if (data.moveToFirst()) {
+                while (!data.isAfterLast()) {
+                    Log.v("iit", "track : " + data.getString(data.getColumnIndex(MediaStore.Audio.Media.TITLE)));
+                    if (!data.isClosed()) {
+                        data.moveToNext();
+                    }
+                }
+
+
+            }
+
+        }
+
+
+    }
+
+    @Override
+    public void onLoaderReset(Loader loader) {
+//do nothing
     }
 
     /***********************************************************/
